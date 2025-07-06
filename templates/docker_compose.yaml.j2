@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+{% for node in vault_nodes %}
+  {{ node.name }}:
+    image: hashicorp/vault:1.20
+    container_name: {{ node.name }}
+    user: "{{ ansible_user_uid }}:{{ ansible_user_gid }}"
+    ports:
+      - "{{ node.api_port }}:8200"
+      - "{{ node.cluster_port }}:8201"
+    volumes:
+      - ./{{ node.name }}/config:/vault/config
+      - ./{{ node.name }}/data:/vault/data
+    environment:
+      - VAULT_ADDR=http://{{ node.name }}:8200
+      - SKIP_CHOWN=1
+      - SKIP_SETCAP=1
+    command: server
+    networks:
+      - vault-network
+    cap_add:
+      - IPC_LOCK
+{% endfor %}
+
+networks:
+  vault-network:
+    driver: bridge

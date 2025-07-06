@@ -1,0 +1,152 @@
+---
+- name: Set up 3-node Vault cluster with Raft
+  hosts: all
+  vars:
+    vault_dir: /home/{{ ansible_user }}/vault-cluster
+    vault_nodes:
+      - name: vault1
+        api_port: 8200
+        cluster_port: 8201
+      - name: vault2
+        api_port: 8202
+        cluster_port: 8203
+      - name: vault3
+        api_port: 8204
+        cluster_port: 8205
+    unseal_keys_threshold: 3
+    unseal_keys_shares: 3
+
+  tasks:
+    - name: Clean up before we go
+      become: true
+      file:
+        path: "{{ vault_dir }}"
+        state: absent
+
+    - name: Create Vault project directory structure
+      become: true
+      file:
+        path: "{{ vault_dir }}/{{ item[0] }}/{{ item[1] }}"
+        state: directory
+        owner: 100
+        group: 1000
+        mode: '0777'
+      loop: "{{ ['vault1', 'vault2', 'vault3'] | product(['config', 'data']) | list }}"
+      
+    - name: Create Vault configuration files
+      become: true
+      template:
+        src: vault_config.hcl.j2
+        dest: "{{ vault_dir }}/{{ item.name }}/config/{{ item.name }}.hcl"
+        owner: 100
+        group: 1000
+        mode: '0644'
+      loop: "{{ vault_nodes }}"
+
+    - name: Create docker-compose.yaml
+      template:
+        src: docker_compose.yaml.j2
+        dest: "{{ vault_dir }}/docker-compose.yaml"
+        mode: '0644'
+
+    - name: Start Vault cluster with Docker Compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ vault_dir }}"
+        state: present
+        build: never
+        remove_orphans: true
+        recreate: always
+      environment:
+        DOCKER_HOST: unix:///var/run/docker.sock
+
+    - name: Wait for vault1 to be ready for init
+      uri:
+        url: http://localhost:8200/v1/sys/health
+        status_code: 501
+        return_content: yes
+      register: vault1_health
+      retries: 30
+      delay: 5
+      until: vault1_health.status == 501
+
+    - name: Initialize vault1 (leader node only)
+      command: docker exec vault1 vault operator init -key-shares={{ unseal_keys_shares }} -key-threshold={{ unseal_keys_threshold }} -format=json
+      register: vault_init
+      environment:
+        VAULT_ADDR: http://vault1:8200
+      changed_when: true
+      when: inventory_hostname == 'mele'  # when we switch to multiple VMs, this must be the leader only
+
+    - name: Parse initialization output
+      set_fact:
+        vault_init_json: "{{ vault_init.stdout | from_json }}"
+        cacheable: yes
+
+    - name: Save unseal keys and root token
+      copy:
+        content: |
+          Unseal Key 1: {{ vault_init_json.unseal_keys_b64[0] }}
+          Unseal Key 2: {{ vault_init_json.unseal_keys_b64[1] }}
+          Unseal Key 3: {{ vault_init_json.unseal_keys_b64[2] }}
+          Root Token: {{ vault_init_json.root_token }}
+        dest: "{{ vault_dir }}/vault_keys.txt"
+        mode: '0600'
+
+    - name: Unseal vault1
+      command: docker exec vault1 vault operator unseal {{ item }}
+      loop:
+        - "{{ vault_init_json.unseal_keys_b64[0] }}"
+        - "{{ vault_init_json.unseal_keys_b64[1] }}"
+        - "{{ vault_init_json.unseal_keys_b64[2] }}"
+      environment:
+        VAULT_ADDR: http://vault1:8200
+
+    - name: Join vault2 to the cluster
+      command: docker exec vault2 vault operator raft join http://vault1:8200
+      environment:
+        VAULT_ADDR: http://vault2:8200
+
+    - name: Unseal vault2
+      command: docker exec vault2 vault operator unseal {{ item }}
+      loop:
+        - "{{ vault_init_json.unseal_keys_b64[0] }}"
+        - "{{ vault_init_json.unseal_keys_b64[1] }}"
+        - "{{ vault_init_json.unseal_keys_b64[2] }}"
+      environment:
+        VAULT_ADDR: http://vault2:8200
+
+    - name: Join vault3 to the cluster
+      command: docker exec vault3 vault operator raft join http://vault1:8200
+      environment:
+        VAULT_ADDR: http://vault3:8200
+
+    - name: Unseal vault3
+      command: docker exec vault3 vault operator unseal {{ item }}
+      loop:
+        - "{{ vault_init_json.unseal_keys_b64[0] }}"
+        - "{{ vault_init_json.unseal_keys_b64[1] }}"
+        - "{{ vault_init_json.unseal_keys_b64[2] }}"
+      environment:
+        VAULT_ADDR: http://vault3:8200
+
+    - name: Display root token
+      debug:
+        msg: "Remember to safe the root token: {{ vault_init_json.root_token }}"
+
+    - name: Assert vault1 is active with HTTP 200
+      uri:
+        url: http://localhost:8200/v1/sys/health
+        status_code: 200
+        return_content: yes
+      register: vault1_active
+      failed_when: vault1_active.status != 200
+      when: inventory_hostname == 'mele'
+
+    - name: Verify cluster status
+      command: docker exec -e VAULT_TOKEN="{{ vault_init_json.root_token }}" -e VAULT_ADDR="http://vault1:8200" vault1 vault operator raft list-peers
+      register: raft_peers
+      changed_when: false
+
+    - name: Display cluster status
+      debug:
+        msg: "{{ raft_peers.stdout_lines }}"
