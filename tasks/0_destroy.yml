@@ -1,0 +1,23 @@
+---
+- name: Check if vault root folder exists
+  ansible.builtin.stat:
+    path: "{{ vault_dir }}"
+  register: vault_root_dir_stat
+
+- name: Clean up before we go
+  become: true
+  when: vault_root_dir_stat.stat.exists and vault_root_dir_stat.stat.isdir and (delete_preexisting_setup is defined and delete_preexisting_setup | bool)
+  block:
+    - name: Stop Vault cluster
+      community.docker.docker_compose_v2:
+        project_src: "{{ vault_dir }}"
+        state: absent
+        remove_orphans: true
+      environment:
+        DOCKER_HOST: unix:///var/run/docker.sock
+
+    - name: Clean up before we go
+      become: true
+      file:
+        path: "{{ vault_dir }}"
+        state: absent

@@ -1,0 +1,35 @@
+---
+- name: Create Vault project directory structure
+  become: true
+  file:
+    path: "{{ vault_dir }}/{{ item[0] }}/{{ item[1] }}"
+    state: directory
+    owner: 100
+    group: 1000
+    mode: '0777'
+  loop: "{{ ['vault1', 'vault2', 'vault3'] | product(['config', 'data']) | list }}"
+  
+- name: Create Vault configuration files
+  become: true
+  template:
+    src: templates/vault_config.hcl.j2
+    dest: "{{ vault_dir }}/{{ item.name }}/config/{{ item.name }}.hcl"
+    owner: 100
+    group: 1000
+    mode: '0644'
+  loop: "{{ vault_nodes }}"
+
+- name: Create docker-compose.yaml
+  template:
+    src: templates/docker_compose.yaml.j2
+    dest: "{{ vault_dir }}/docker-compose.yaml"
+    mode: '0644'
+
+- name: Start Vault cluster with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ vault_dir }}"
+    state: present
+    build: never
+    remove_orphans: true
+  environment:
+    DOCKER_HOST: unix:///var/run/docker.sock

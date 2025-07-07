@@ -1,0 +1,16 @@
+---
+vault_dir: "/home/{{ ansible_user }}/vault-cluster"
+vault_init_file: "{{ vault_dir }}/keys.json"
+vault_nodes:
+  - name: vault1
+    api_port: 8200
+    cluster_port: 8201
+  - name: vault2
+    api_port: 8202
+    cluster_port: 8203
+  - name: vault3
+    api_port: 8204
+    cluster_port: 8205
+unseal_keys_threshold: 3
+unseal_keys_shares: 3
+delete_preexisting_setup: false
