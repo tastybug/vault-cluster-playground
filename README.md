@@ -18,3 +18,4 @@ ansible-playbook -i inventory.yml main.yaml
 5. unseal non-leaders
 
 - a node might be broken and needs to rejoin individually
+- I'm seing occasional podman issues as such: ERRO[0000] Refreshing volume d2eba286c16b048cb951a7f21d142d24d21ed9936f97a76710db057376c4befb: acquiring lock 2 for volume d2eba286c16b048cb951a7f21d142d24d21ed9936f97a76710db057376c4befb: file exists .
