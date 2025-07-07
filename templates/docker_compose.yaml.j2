@@ -1,7 +1,7 @@
 services:
-  {{ node_name }}:
+  vault:
     image: docker.io/hashicorp/vault:1.20
-    container_name: {{ node_name }}
+    container_name: vault-node
     user: "{{ ansible_user_uid }}:{{ ansible_user_gid }}"
     ports:
       - "8200:8200"

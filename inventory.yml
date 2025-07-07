@@ -1,9 +1,5 @@
 vault_vm:
   hosts:
-    # mele:
-    #   ansible_host: mele.fritz.box  
-    #   ansible_user: philipp
-    #   ansible_ssh_private_key_file: ~/.ssh/ansible
     vault1:
       ansible_host: mele.fritz.box 
       ansible_user: vagrant

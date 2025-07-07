@@ -4,17 +4,16 @@
     url: http://localhost:8200/v1/sys/health
     status_code: [200, 501, 503]
     return_content: true
-  register: vault1_health
-  when: inventory_hostname == 'vault1'
+  register: leader_health
+  when: inventory_hostname == leader_node
 
 - name: Prepare Unsealing Data
-  when: inventory_hostname == 'vault1'
+  when: inventory_hostname == leader_node
   block:
     - name: Read vault init file
       ansible.builtin.slurp:
         src: "{{ vault_init_file }}"
       register: vault_init_content
-      when: inventory_hostname == 'vault1'
 
     - name: Parse JSON content
       ansible.builtin.set_fact:
@@ -26,61 +25,43 @@
         unseal_keys_b64: "{{ vault_data.unseal_keys_b64 }}"
 
 - name: Unseal Leader
-  command: podman exec vault1 vault operator unseal {{ item }}
+  command: "podman exec vault-node vault operator unseal {{ item }}"
   loop:
-    - "{{ hostvars['vault1'].unseal_keys_b64[0] }}"
-    - "{{ hostvars['vault1'].unseal_keys_b64[1] }}"
-    - "{{ hostvars['vault1'].unseal_keys_b64[2] }}"
+    - "{{ hostvars[leader_node].unseal_keys_b64[0] }}"
+    - "{{ hostvars[leader_node].unseal_keys_b64[1] }}"
+    - "{{ hostvars[leader_node].unseal_keys_b64[2] }}"
   environment:
-    VAULT_ADDR: http://vault1:8200
-  when: hostvars['vault1'].vault1_health.status in [503] and inventory_hostname == 'vault1'
+    VAULT_ADDR: "http://{{ leader_node }}:8200"
+  when: inventory_hostname == leader_node and hostvars[leader_node].leader_health.status in [503]
 
-- name: Unseal if necessary
-  when: hostvars['vault1'].vault1_health.status in [503]
+- name: Unseal+Join Followers
+  when: inventory_hostname != leader_node and hostvars[leader_node].leader_health.status in [503]
   block:
-    - name: Join vault2 to the cluster
-      command: podman exec vault2 vault operator raft join http://vault1:8200
+    - name: Join node to the cluster
+      command: podman exec vault-node vault operator raft join http://{{ leader_node }}:8200
       environment:
-        VAULT_ADDR: http://vault2:8200
-      when: inventory_hostname == 'vault2'
+        VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
 
-    - name: Unseal vault2
-      command: podman exec vault2 vault operator unseal {{ item }}
+    - name: Unseal node
+      command: podman exec vault-node vault operator unseal {{ item }}
       loop:
-        - "{{ hostvars['vault1'].unseal_keys_b64[0] }}"
-        - "{{ hostvars['vault1'].unseal_keys_b64[1] }}"
-        - "{{ hostvars['vault1'].unseal_keys_b64[2] }}"
+        - "{{ hostvars[leader_node].unseal_keys_b64[0] }}"
+        - "{{ hostvars[leader_node].unseal_keys_b64[1] }}"
+        - "{{ hostvars[leader_node].unseal_keys_b64[2] }}"
       environment:
-        VAULT_ADDR: http://vault2:8200
-      when: inventory_hostname == 'vault2'
-
-    - name: Join vault3 to the cluster
-      command: podman exec vault3 vault operator raft join http://vault1:8200
-      environment:
-        VAULT_ADDR: http://vault3:8200
-      when: inventory_hostname == 'vault3'
-
-    - name: Unseal vault3
-      command: podman exec vault3 vault operator unseal {{ item }}
-      loop:
-        - "{{ hostvars['vault1'].unseal_keys_b64[0] }}"
-        - "{{ hostvars['vault1'].unseal_keys_b64[1] }}"
-        - "{{ hostvars['vault1'].unseal_keys_b64[2] }}"
-      environment:
-        VAULT_ADDR: http://vault3:8200
-      when: inventory_hostname == 'vault3'
+        VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
 
 - name: Cluster Readiness Check 
-  when: inventory_hostname == 'vault1'
+  when: inventory_hostname == leader_node
   block:
-    - name: Assert vault1 is active with HTTP 200
+    - name: Assert Leader is ACTIVE with HTTP 200
       uri:
         url: http://localhost:8200/v1/sys/health
         status_code: 200
         return_content: yes
   
     - name: Verify cluster status
-      command: podman exec -e VAULT_TOKEN="{{ vault_init_json.root_token }}" -e VAULT_ADDR="http://vault1:8200" vault1 vault operator raft list-peers
+      command: podman exec -e VAULT_TOKEN="{{ vault_init_json.root_token }}" -e VAULT_ADDR="http://{{ leader_node }}:8200" vault-node vault operator raft list-peers
       register: raft_peers
       changed_when: false
 

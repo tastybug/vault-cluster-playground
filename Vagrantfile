@@ -32,9 +32,9 @@ Vagrant.configure("2") do |config|
     	#sudo firewall-cmd --permanent --add-port=8201/tcp
     	#sudo firewall-cmd --reload
 
-		echo "192.168.60.21 vault1" >> /etc/hosts
-        echo "192.168.60.22 vault2" >> /etc/hosts
-        echo "192.168.60.23 vault3" >> /etc/hosts
+		  echo "192.168.60.21 vault1" >> /etc/hosts
+      echo "192.168.60.22 vault2" >> /etc/hosts
+      echo "192.168.60.23 vault3" >> /etc/hosts
 
 		sudo hostnamectl set-hostname vault#{i}
       SHELL
