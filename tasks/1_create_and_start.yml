@@ -2,34 +2,39 @@
 - name: Create Vault project directory structure
   become: true
   file:
-    path: "{{ vault_dir }}/{{ item[0] }}/{{ item[1] }}"
+    path: "{{ vault_dir }}/{{ item }}"
     state: directory
-    owner: 100
-    group: 1000
+    owner: vagrant
+    group: vagrant
     mode: '0777'
-  loop: "{{ ['vault1', 'vault2', 'vault3'] | product(['config', 'data']) | list }}"
+  loop:
+    - config
+    - data
   
 - name: Create Vault configuration files
   become: true
+  vars:
+      node_name: "{{ inventory_hostname }}"
   template:
     src: templates/vault_config.hcl.j2
-    dest: "{{ vault_dir }}/{{ item.name }}/config/{{ item.name }}.hcl"
-    owner: 100
-    group: 1000
+    dest: "{{ vault_dir }}/config/vault.hcl"
+    owner: vagrant
+    group: vagrant
     mode: '0644'
-  loop: "{{ vault_nodes }}"
 
 - name: Create docker-compose.yaml
+  vars:
+      node_name: "{{ inventory_hostname }}"
   template:
     src: templates/docker_compose.yaml.j2
     dest: "{{ vault_dir }}/docker-compose.yaml"
     mode: '0644'
 
-- name: Start Vault cluster with Docker Compose
-  community.docker.docker_compose_v2:
-    project_src: "{{ vault_dir }}"
-    state: present
-    build: never
-    remove_orphans: true
+- name: Ensure podman-compose is up
+  ansible.builtin.command:
+    cmd: podman-compose up -d
+    chdir: "{{ vault_dir }}"
+  register: compose_result
+  changed_when: compose_result.rc == 0
   environment:
-    DOCKER_HOST: unix:///var/run/docker.sock
+    DOCKER_HOST: "unix:///run/user/{{ ansible_user_id }}/podman/podman.sock"

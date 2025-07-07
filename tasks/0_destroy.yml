@@ -5,16 +5,16 @@
   register: vault_root_dir_stat
 
 - name: Clean up before we go
-  become: true
-  when: vault_root_dir_stat.stat.exists and vault_root_dir_stat.stat.isdir and (delete_preexisting_setup is defined and delete_preexisting_setup | bool)
+  when: vault_root_dir_stat.stat.exists and vault_root_dir_stat.stat.isdir and (destroy is defined and destroy | bool)
   block:
-    - name: Stop Vault cluster
-      community.docker.docker_compose_v2:
-        project_src: "{{ vault_dir }}"
-        state: absent
-        remove_orphans: true
+    - name: Stop vault cluster
+      ansible.builtin.command:
+        cmd: ~/.local/bin/podman-compose down
+        chdir: "{{ vault_dir }}"
+      register: compose_result
+      changed_when: compose_result.rc == 0
       environment:
-        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_HOST: "unix:///run/user/{{ ansible_user_id }}/podman/podman.sock"
 
     - name: Clean up before we go
       become: true

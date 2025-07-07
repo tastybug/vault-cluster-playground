@@ -1,14 +1,14 @@
 # disabling mlock is fine as long as we use integrated storage
 # see https://developer.hashicorp.com/vault/docs/configuration
 disable_mlock = true
-api_addr      = "http://{{ item.name }}:8200"
-cluster_addr  = "http://{{ item.name }}:8201"
+api_addr      = "http://{{ node_name }}:8200"
+cluster_addr  = "http://{{ node_name }}:8201"
 cluster_name  = "vault-cluster"
 ui            = true
 
 storage "raft" {
   path    = "/vault/data"
-  node_id = "{{ item.name }}"
+  node_id = "{{ node_name }}"
 }
 
 listener "tcp" {

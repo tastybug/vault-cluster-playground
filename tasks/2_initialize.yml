@@ -1,22 +1,22 @@
 ---
-- name: Check vault1 state
+- name: Check Leader State
   uri:
     url: http://localhost:8200/v1/sys/health
     status_code: [200, 501, 503]
     return_content: true
   register: vault1_health
+  when: inventory_hostname == 'vault1'
 
-- name: Initialize if necessary
-  when: vault1_health.status in [501]
+- name: Initialize Leader if necessary
+  when: inventory_hostname == 'vault1' and vault1_health.status in [501]
   block:
-    - name: Initialize vault1 (leader node only)
-      command: docker exec vault1 vault operator init -key-shares={{ unseal_keys_shares }} -key-threshold={{ unseal_keys_threshold }} -format=json
+    - name: Initialize Leader
+      command: podman exec vault1 vault operator init -key-shares={{ unseal_keys_shares }} -key-threshold={{ unseal_keys_threshold }} -format=json
       register: vault_init
       environment:
         VAULT_ADDR: http://vault1:8200
       changed_when: true
-      when: inventory_hostname == 'mele'  # when we switch to multiple VMs, this must be the leader only
-
+      
     - name: Parse initialization output
       set_fact:
         vault_init_json: "{{ vault_init.stdout | from_json }}"
