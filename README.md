@@ -17,3 +17,4 @@ ansible-playbook -i inventory.yml main.yaml
 4. non-leaders join cluster
 5. unseal non-leaders
 
+- a node might be broken and needs to rejoin individually
