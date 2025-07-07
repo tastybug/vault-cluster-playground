@@ -4,4 +4,4 @@ vault_init_file: "{{ vault_dir }}/keys.json"
 unseal_keys_threshold: 3
 unseal_keys_shares: 3
 destroy: false
-leader_node: vault1
+first_node: vault1

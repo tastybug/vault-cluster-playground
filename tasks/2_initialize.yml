@@ -1,20 +1,20 @@
 ---
-- name: Check Leader State
+- name: Check First Node State
   uri:
     url: http://localhost:8200/v1/sys/health
     status_code: [200, 429, 501, 503]
     return_content: true
-  register: leader_health
-  when: "inventory_hostname == leader_node"
+  register: cluster_health
+  when: "inventory_hostname == first_node"
 
-- name: Initialize Leader if necessary
-  when: "inventory_hostname == leader_node and leader_health.status in [501]"
+- name: Initialize Cluster
+  when: "inventory_hostname == first_node and cluster_health.status in [501]"
   block:
     - name: Initialize Leader
       command: "podman exec vault-node vault operator init -key-shares={{ unseal_keys_shares }} -key-threshold={{ unseal_keys_threshold }} -format=json"
       register: vault_init
       environment:
-        VAULT_ADDR: "http://{{ leader_node }}:8200"
+        VAULT_ADDR: "http://{{ first_node }}:8200"
       changed_when: true
       
     - name: Parse initialization output

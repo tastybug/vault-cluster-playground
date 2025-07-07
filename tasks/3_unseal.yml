@@ -1,14 +1,14 @@
 ---
-- name: Check Leader State
+- name: Check Cluster State
   uri:
     url: http://localhost:8200/v1/sys/health
     status_code: [200, 429, 501, 503]
     return_content: true
-  register: leader_health
-  when: inventory_hostname == leader_node
+  register: cluster_health
+  when: inventory_hostname == first_node
 
 - name: Prepare Unsealing Data
-  when: inventory_hostname == leader_node
+  when: inventory_hostname == first_node
   block:
     - name: Read vault init file
       ansible.builtin.slurp:
@@ -24,35 +24,35 @@
         root_token: "{{ vault_data.root_token }}"
         unseal_keys_b64: "{{ vault_data.unseal_keys_b64 }}"
 
-- name: Unseal Leader
+- name: Unseal First Node
   command: "podman exec vault-node vault operator unseal {{ item }}"
   loop:
-    - "{{ hostvars[leader_node].unseal_keys_b64[0] }}"
-    - "{{ hostvars[leader_node].unseal_keys_b64[1] }}"
-    - "{{ hostvars[leader_node].unseal_keys_b64[2] }}"
+    - "{{ hostvars[first_node].unseal_keys_b64[0] }}"
+    - "{{ hostvars[first_node].unseal_keys_b64[1] }}"
+    - "{{ hostvars[first_node].unseal_keys_b64[2] }}"
   environment:
-    VAULT_ADDR: "http://{{ leader_node }}:8200"
-  when: inventory_hostname == leader_node and hostvars[leader_node].leader_health.status in [503]
+    VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
+  when: inventory_hostname == first_node and hostvars[first_node].cluster_health.status in [503]
 
-- name: Unseal+Join Followers
-  when: inventory_hostname != leader_node and hostvars[leader_node].leader_health.status in [503]
+- name: Unseal+Join Further Nodes
+  when: inventory_hostname != first_node and hostvars[first_node].cluster_health.status in [503]
   block:
     - name: Join node to the cluster
-      command: podman exec vault-node vault operator raft join http://{{ leader_node }}:8200
+      command: podman exec vault-node vault operator raft join http://{{ first_node }}:8200
       environment:
         VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
 
     - name: Unseal node
       command: podman exec vault-node vault operator unseal {{ item }}
       loop:
-        - "{{ hostvars[leader_node].unseal_keys_b64[0] }}"
-        - "{{ hostvars[leader_node].unseal_keys_b64[1] }}"
-        - "{{ hostvars[leader_node].unseal_keys_b64[2] }}"
+        - "{{ hostvars[first_node].unseal_keys_b64[0] }}"
+        - "{{ hostvars[first_node].unseal_keys_b64[1] }}"
+        - "{{ hostvars[first_node].unseal_keys_b64[2] }}"
       environment:
         VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
 
 - name: Cluster Readiness Check 
-  when: inventory_hostname == leader_node
+  when: inventory_hostname == first_node
   block:
     - name: Assert Leader is ACTIVE with HTTP 200 or 429
       uri:
@@ -61,7 +61,7 @@
         return_content: yes
   
     - name: Verify cluster status
-      command: podman exec -e VAULT_TOKEN="{{ hostvars[leader_node].root_token }}" -e VAULT_ADDR="http://{{ leader_node }}:8200" vault-node vault operator raft list-peers
+      command: podman exec -e VAULT_TOKEN="{{ hostvars[first_node].root_token }}" -e VAULT_ADDR="http://{{ inventory_hostname }}:8200" vault-node vault operator raft list-peers
       register: raft_peers
       changed_when: false
 
