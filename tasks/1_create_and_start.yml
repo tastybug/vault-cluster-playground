@@ -32,7 +32,7 @@
 
 - name: Ensure podman-compose is up
   ansible.builtin.command:
-    cmd: podman-compose up -d
+    cmd: /usr/local/bin/podman-compose up -d
     chdir: "{{ vault_dir }}"
   register: compose_result
   changed_when: compose_result.rc == 0

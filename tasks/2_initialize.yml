@@ -2,7 +2,7 @@
 - name: Check Leader State
   uri:
     url: http://localhost:8200/v1/sys/health
-    status_code: [200, 501, 503]
+    status_code: [200, 429, 501, 503]
     return_content: true
   register: leader_health
   when: "inventory_hostname == leader_node"

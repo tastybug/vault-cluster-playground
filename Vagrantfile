@@ -12,6 +12,7 @@ Vagrant.configure("2") do |config|
       
       # Configure SSH port forwarding
       node.vm.network "forwarded_port", guest: 22, host: 20021 + i, id: "ssh"
+      node.vm.network "forwarded_port", guest: 8200, host: 8221 + i, id: "web"
       
       # VirtualBox provider settings
       node.vm.provider "virtualbox" do |vb|
@@ -27,16 +28,16 @@ Vagrant.configure("2") do |config|
         pip3 install podman-compose
         sudo -u vagrant podman system migrate || true
         podman run hello-world
-		# it aint running
-		#sudo firewall-cmd --permanent --add-port=8200/tcp
-    	#sudo firewall-cmd --permanent --add-port=8201/tcp
-    	#sudo firewall-cmd --reload
+        # it aint running
+        #sudo firewall-cmd --permanent --add-port=8200/tcp
+        #sudo firewall-cmd --permanent --add-port=8201/tcp
+        #sudo firewall-cmd --reload
 
-		  echo "192.168.60.21 vault1" >> /etc/hosts
-      echo "192.168.60.22 vault2" >> /etc/hosts
-      echo "192.168.60.23 vault3" >> /etc/hosts
+        echo "192.168.60.21 vault1" >> /etc/hosts
+        echo "192.168.60.22 vault2" >> /etc/hosts
+        echo "192.168.60.23 vault3" >> /etc/hosts
 
-		sudo hostnamectl set-hostname vault#{i}
+		    sudo hostnamectl set-hostname vault#{i}
       SHELL
     end
   end

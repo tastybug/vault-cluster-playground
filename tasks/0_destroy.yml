@@ -9,7 +9,7 @@
   block:
     - name: Stop vault cluster
       ansible.builtin.command:
-        cmd: ~/.local/bin/podman-compose down
+        cmd: /usr/local/bin/podman-compose down
         chdir: "{{ vault_dir }}"
       register: compose_result
       changed_when: compose_result.rc == 0

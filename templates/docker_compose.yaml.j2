@@ -7,8 +7,8 @@ services:
       - "8200:8200"
       - "8201:8201"
     volumes:
-      - ./config:/vault/config
-      - ./data:/vault/data
+      - ./config:/vault/config:z
+      - ./data:/vault/data:z
     environment:
       - VAULT_ADDR=http://{{ node_name }}:8200
       - SKIP_CHOWN=1

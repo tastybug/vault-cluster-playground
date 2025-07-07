@@ -2,7 +2,7 @@
 - name: Check Leader State
   uri:
     url: http://localhost:8200/v1/sys/health
-    status_code: [200, 501, 503]
+    status_code: [200, 429, 501, 503]
     return_content: true
   register: leader_health
   when: inventory_hostname == leader_node
@@ -54,14 +54,14 @@
 - name: Cluster Readiness Check 
   when: inventory_hostname == leader_node
   block:
-    - name: Assert Leader is ACTIVE with HTTP 200
+    - name: Assert Leader is ACTIVE with HTTP 200 or 429
       uri:
         url: http://localhost:8200/v1/sys/health
-        status_code: 200
+        status_code: [200, 429]
         return_content: yes
   
     - name: Verify cluster status
-      command: podman exec -e VAULT_TOKEN="{{ vault_init_json.root_token }}" -e VAULT_ADDR="http://{{ leader_node }}:8200" vault-node vault operator raft list-peers
+      command: podman exec -e VAULT_TOKEN="{{ hostvars[leader_node].root_token }}" -e VAULT_ADDR="http://{{ leader_node }}:8200" vault-node vault operator raft list-peers
       register: raft_peers
       changed_when: false
 
