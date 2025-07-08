@@ -1,14 +1,26 @@
 ---
-- name: Check First Node State
-  uri:
-    url: http://localhost:8200/v1/sys/health
-    status_code: [200, 429, 501, 503]
-    return_content: true
-  register: cluster_health
+- name: Initialize Cluster
   when: "inventory_hostname == first_node"
+  block:
+    - name: Check if Vault is initialized
+      ansible.builtin.uri:
+        url: "http://{{ first_node }}:8200/v1/sys/init"
+        method: GET
+        return_content: true
+        status_code: 200
+        validate_certs: false
+      register: vault_init_status
+
+    - name: Set fact for Vault initialization status
+      set_fact:
+        vault_initialized: "{{ vault_init_status.json.initialized | default(false)}}"
+
+    - name: Announce Vault initialization status
+      debug:
+        msg: "Cluster is initialized: {{ vault_initialized }}"
 
 - name: Initialize Cluster
-  when: "inventory_hostname == first_node and cluster_health.status in [501]"
+  when: "inventory_hostname == first_node and not vault_initialized"
   block:
     - name: Initialize Leader
       command: "podman exec vault-node vault operator init -key-shares={{ unseal_keys_shares }} -key-threshold={{ unseal_keys_threshold }} -format=json"
