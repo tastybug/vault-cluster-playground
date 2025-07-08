@@ -7,4 +7,4 @@
     - include_tasks: tasks/0_destroy.yml
     - include_tasks: tasks/1_create_and_start.yml
     - include_tasks: tasks/2_initialize.yml
-    # - include_tasks: tasks/3_unseal.yml
+    - include_tasks: tasks/3_unseal.yml

@@ -1,5 +1,5 @@
 ---
-- name: Initialize Cluster
+- name: Is the Cluster Initialized?
   when: "inventory_hostname == first_node"
   block:
     - name: Check if Vault is initialized
