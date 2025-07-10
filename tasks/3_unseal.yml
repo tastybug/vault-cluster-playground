@@ -31,27 +31,49 @@
         root_token: "{{ vault_data.root_token }}"
         unseal_keys_b64: "{{ vault_data.unseal_keys_b64 }}"
 
-- name: Unseal First Node
-  when: vault_sealed and inventory_hostname == first_node
+- name: Unseal Vault with multiple keys if sealed
+  when: hostvars[inventory_hostname].vault_sealed and inventory_hostname == first_node
   block:
-    - name: Unseal node
-      command: podman exec vault-node vault operator unseal {{ item }}
+    - name: Unseal Vault First Node
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/sys/unseal"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ hostvars[first_node].root_token }}"
+        body_format: json
+        body:
+          key: "{{ item }}"
+        return_content: yes
       loop:
         - "{{ hostvars[first_node].unseal_keys_b64[0] }}"
         - "{{ hostvars[first_node].unseal_keys_b64[1] }}"
         - "{{ hostvars[first_node].unseal_keys_b64[2] }}"
-      environment:
-        VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
+    
+    - name: query seal endpoint 
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/sys/seal-status"
+        status_code: 200
+        return_content: true
+      register: vault_seal_status
 
+    - name: Set fact for Vault seal status
+      set_fact:
+        vault_sealed: "{{ vault_seal_status.json.sealed | default(true) }}"
+  
+    - name: Fail if Vault First Node Remains Sealed
+      ansible.builtin.fail:
+        msg: "Failed to unseal: {{ inventory_hostname }}"
+      when: vault_sealed
+        
 - name: Unseal+Join Further Nodes
-  when: vault_sealed and inventory_hostname != first_node
+  when: hostvars[inventory_hostname].vault_sealed and inventory_hostname != first_node
   block:
-    - name: Join node to the cluster
+    - name: Join Further Node
       command: podman exec vault-node vault operator raft join http://{{ first_node }}:8200
       environment:
         VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
 
-    - name: Unseal node
+    - name: Unseal Further Node
       command: podman exec vault-node vault operator unseal {{ item }}
       loop:
         - "{{ hostvars[first_node].unseal_keys_b64[0] }}"
@@ -60,6 +82,26 @@
       environment:
         VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
     
+    - name: Give it a moment
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: query seal endpoint 
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/sys/seal-status"
+        status_code: 200
+        return_content: true
+      register: vault_seal_status
+
+    - name: Set fact for Vault seal status
+      set_fact:
+        vault_sealed: "{{ vault_seal_status.json.sealed | default(true) }}"
+
+    - name: Complain if Further Nodes Remain Sealed
+      ansible.builtin.debug:
+        msg: "Failed to unseal: {{ vault_seal_status.json }}"
+      # when: vault_sealed
+
 - name: Cluster Readiness Check 
   block:
     - name: Check Vault status
@@ -81,7 +123,13 @@
 - name: Cluster Raft Check 
   when: inventory_hostname == first_node
   block:
+
+    - name: Wait a moment before final check
+      ansible.builtin.pause:
+        seconds: 5
+
     - name: Verify raft situation
+      # let's wait a moment here to let dust settle
       command: podman exec -e VAULT_TOKEN="{{ hostvars[first_node].root_token }}" -e VAULT_ADDR="http://{{ inventory_hostname }}:8200" vault-node vault operator raft list-peers
       register: raft_peers
       changed_when: false
