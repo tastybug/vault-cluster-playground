@@ -1,0 +1,34 @@
+---
+- name: Is Node Sealed?
+  block:
+  - name: Query seal-status For Initial Check
+    ansible.builtin.uri:
+      url: "http://{{ inventory_hostname }}:8200/v1/sys/seal-status"
+      status_code: 200
+      return_content: true
+    register: vault_seal_status
+
+  - name: Store Seal-State as Fact
+    set_fact:
+      vault_sealed: "{{ vault_seal_status.json.sealed | default(true) }}"
+
+  - name: Debug Vault seal status
+    debug:
+      msg: "Vault is initially sealed: {{ vault_sealed }}"
+
+- name: Grab Keys and Root Token (on first node)
+  when: "inventory_hostname == first_node"
+  block:
+    - name: Read Key File
+      ansible.builtin.slurp:
+        src: "{{ vault_init_file }}"
+      register: vault_init_content
+
+    - name: Parse JSON
+      ansible.builtin.set_fact:
+        vault_data: "{{ vault_init_content.content | b64decode | from_json }}"
+
+    - name: Set root token and unseal keys as facts
+      ansible.builtin.set_fact:
+        root_token: "{{ vault_data.root_token }}"
+        unseal_keys_b64: "{{ vault_data.unseal_keys_b64 }}"

@@ -10,7 +10,7 @@
   loop:
     - config
     - data
-  
+
 - name: Create Vault configuration files
   become: true
   vars:
@@ -30,7 +30,7 @@
     dest: "{{ vault_dir }}/docker-compose.yaml"
     mode: '0644'
 
-- name: Ensure podman-compose is up
+- name: Start node
   ansible.builtin.command:
     cmd: /usr/local/bin/podman-compose up -d
     chdir: "{{ vault_dir }}"

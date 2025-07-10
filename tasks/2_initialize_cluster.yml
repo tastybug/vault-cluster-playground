@@ -1,6 +1,5 @@
 ---
 - name: Is the Cluster Initialized?
-  when: "inventory_hostname == first_node"
   block:
     - name: Check if Vault is initialized
       ansible.builtin.uri:
@@ -20,7 +19,7 @@
         msg: "Cluster is initialized: {{ vault_initialized }}"
 
 - name: Initialize Cluster
-  when: "inventory_hostname == first_node and not vault_initialized"
+  when: "not vault_initialized"
   block:
     - name: Initialize Leader
       command: "podman exec vault-node vault operator init -key-shares={{ unseal_keys_shares }} -key-threshold={{ unseal_keys_threshold }} -format=json"

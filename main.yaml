@@ -1,10 +1,27 @@
 ---
-- name: Set up 3-node Vault cluster with Raft
+- name: Basic Prep
   hosts: all
   vars_files:
     - vars/main.yml
   tasks:
     - include_tasks: tasks/0_destroy.yml
     - include_tasks: tasks/1_create_and_start.yml
-    - include_tasks: tasks/2_initialize.yml
-    - include_tasks: tasks/3_unseal.yml
+
+- name: Set up 3-node Vault cluster with Raft
+  hosts: all
+  vars_files:
+    - vars/main.yml
+  serial: 1
+  order: inventory
+  tasks:
+    - include_tasks: tasks/2_initialize_cluster.yml
+      when: inventory_hostname == first_node
+    - include_tasks: tasks/3_unsealing_preparation.yml
+    - include_tasks: tasks/4_unseal_cluster.yml
+
+- name: Preflight Checks
+  hosts: all
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - include_tasks: tasks/5_preflight_check.yml

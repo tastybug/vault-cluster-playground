@@ -1,0 +1,46 @@
+---
+
+- name: Pause A Moment; Unsealing and Joining Takes a Moment
+  pause: 
+    seconds: 10
+
+- name: Query seal-status once more
+  ansible.builtin.command: podman exec vault-node vault status -format=json
+  environment:
+    VAULT_ADDR: "http://{{ inventory_hostname }}:8200"
+  register: vault_status
+
+- name: Fail If Still Sealed
+  ansible.builtin.debug:
+    msg: "STILL SEALED: {{ vault_status.stdout }}"
+  when: (vault_status.stdout | from_json).sealed == true
+
+- name: Cluster Readiness Check 
+  block:
+    - name: Check Vault Status
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/sys/seal-status"
+        status_code: 200
+        return_content: true
+      register: vault_seal_status
+
+    - name: Debug Vault Status
+      debug:
+        msg: |
+          Node: {{ inventory_hostname }}
+          Initialized: {{ vault_seal_status.json.initialized | default(false) }}
+          Sealed: {{ vault_seal_status.json.sealed | default(true) }}
+          Version: {{ vault_seal_status.json.version | default('unknown') }}
+          Cluster Name: {{ vault_seal_status.json.cluster_name | default('unknown') }}
+
+- name: Cluster Raft Check 
+  when: "inventory_hostname == first_node"
+  block:
+    - name: Read raft situation
+      command: podman exec -e VAULT_TOKEN="{{ hostvars[first_node].root_token }}" -e VAULT_ADDR="http://{{ inventory_hostname }}:8200" vault-node vault operator raft list-peers
+      register: raft_peers
+      changed_when: false
+
+    - name: Display raft status
+      debug:
+        msg: "{{ raft_peers.stdout_lines }}"
