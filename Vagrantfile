@@ -28,6 +28,9 @@ Vagrant.configure("2") do |config|
         pip3 install podman-compose
         sudo -u vagrant podman system migrate || true
         podman run hello-world
+        # https://github.com/containers/podman/issues/16784
+        sudo loginctl enable-linger vagrant
+        
         # it aint running
         #sudo firewall-cmd --permanent --add-port=8200/tcp
         #sudo firewall-cmd --permanent --add-port=8201/tcp
