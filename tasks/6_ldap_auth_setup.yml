@@ -1,0 +1,38 @@
+---
+- name: Configure LDAP authentication
+  block:
+    - name: Check if LDAP auth method is already enabled
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/sys/auth"
+        method: GET
+        headers:
+          X-Vault-Token: "{{ hostvars[first_node].root_token }}"
+        status_code: 200
+        return_content: yes
+      register: auth_methods
+
+    - name: Enable LDAP auth method (not idempotent)
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/sys/auth/ldap"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ hostvars[first_node].root_token }}"
+        body_format: json
+        body:
+          type: ldap
+          description: "LDAP authentication method"
+        status_code: 204
+      when: "'ldap/' not in auth_methods.json.data"
+
+    - name: Configure LDAP auth method
+      ansible.builtin.uri:
+        url: "http://{{ inventory_hostname }}:8200/v1/auth/ldap/config"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ hostvars[first_node].root_token }}"
+        body_format: json
+        body: "{{ lookup('template', 'ldap_config.json.j2') }}"
+        status_code: 204
+      vars:
+        vault_ldap_url: "ldap://ldap.example.com"
+  

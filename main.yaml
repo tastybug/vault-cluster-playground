@@ -25,3 +25,11 @@
     - vars/main.yml
   tasks:
     - include_tasks: tasks/5_preflight_check.yml
+
+- name: Cluster Configuration
+  hosts: all
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - include_tasks: tasks/6_ldap_auth_setup.yml
+      when: inventory_hostname == first_node
