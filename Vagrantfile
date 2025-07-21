@@ -24,7 +24,7 @@ Vagrant.configure("2") do |config|
       node.vm.provision "shell", inline: <<-SHELL
         sudo systemctl enable sshd
         sudo systemctl start sshd
-        sudo dnf install -y podman systemd dbus python3-pip git wget curl
+        sudo dnf install -y podman systemd dbus python3-pip git wget curl vim
         pip3 install podman-compose
         sudo -u vagrant podman system migrate || true
         podman run hello-world

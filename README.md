@@ -15,6 +15,8 @@ Offene Themen:
 - secrets are logged
 - configure container restart? does it make sense?
 - prom integration
+- ldap setup
+- policy setup
 - how do you connect to the cluster? see below
 
 # Own Observations

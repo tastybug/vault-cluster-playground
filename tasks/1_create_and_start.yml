@@ -1,4 +1,5 @@
 ---
+
 - name: Create Vault project directory structure
   become: true
   file:
