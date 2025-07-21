@@ -33,3 +33,5 @@
   tasks:
     - include_tasks: tasks/6_ldap_auth_setup.yml
       when: inventory_hostname == first_node
+    - include_tasks: tasks/7_policy_setup.yml
+      when: inventory_hostname == first_node

@@ -1,0 +1,13 @@
+---
+- name: Upload HCL policy files
+  ansible.builtin.uri:
+    url: "http://{{ inventory_hostname }}:8200/v1/sys/policies/acl/{{ item | basename | splitext | first }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ hostvars[first_node].root_token }}"
+    body_format: json
+    body:
+      policy: "{{ lookup('file', item) }}"
+    status_code: 204
+  loop: "{{ query('fileglob', 'files/policy_*.hcl') }}"
+  
